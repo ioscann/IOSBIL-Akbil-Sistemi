@@ -212,53 +212,57 @@ namespace Akbil_projesi.Super_user_forms
                     string currentBalance = dr[4].ToString();
                     string paymentMethod;
                     if (dr[5].ToString() == "Cash") { paymentMethod = "Nakit";  } else { paymentMethod = "Kart"; }
-
-                    var explorer = new PosExplorer();
-                    var deviceInfo = explorer.GetDevice(DeviceType.PosPrinter);
-                    if (deviceInfo == null)
+                    
+                    try
                     {
-                        MessageBox.Show("Yazıcı bulunamadı!");
-                        return;
+                        var explorer = new PosExplorer();
+                        var deviceInfo = explorer.GetDevice(DeviceType.PosPrinter);
+                        if (deviceInfo == null)
+                        {
+                            MessageBox.Show("Yazıcı bulunamadı!");
+                            return;
+                        }
+
+                        posPrinter = (PosPrinter)explorer.CreateInstance(deviceInfo);
+                        posPrinter.Open();
+                        posPrinter.Claim(500);
+                        posPrinter.DeviceEnabled = true;
+
+                        posPrinter.StatusUpdateEvent += (s, evt) =>
+                        {
+                            if (evt.Status == PosPrinter.StatusCoverOpen)
+                            {
+                                MessageBox.Show("Yazıcının kağıt kapağı açıldı");
+                            }
+                            if (evt.Status == PosPrinter.StatusCoverOK)
+                            {
+                                MessageBox.Show("Yazıcının kağıt kapağı kapandı");
+                            }
+                            if (evt.Status == PosPrinter.StatusJournalCartridgeEmpty)
+                            {
+                                MessageBox.Show("Yazıcının kartuşu bitmek üzere");
+                            }
+
+                            //istediğin eventleri yakalayabilirsin bir sürü var
+                        };
+
+                        posPrinter.PrintNormal(PrinterStation.Slip, "İOSBİL BAKİYE YÜKLEME NOKTASI" + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "********************************************************************" + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "KART SAHİBİ ADI :   " + name + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "KART SAHİBİ SOYADI   : " + surname + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "YÜKLENEN BAKİYE   : " + loadedBalance + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "MEVCUT BAKİYE   : " + currentBalance + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "ÖDEME TÜRÜ :   " + paymentMethod + Environment.NewLine);
+                        posPrinter.PrintNormal(PrinterStation.Slip, "********************************************************************" + Environment.NewLine);
+                        posPrinter.PrintBarCode(PrinterStation.Slip, "123456789", BarCodeSymbology.Ean128, 40, 200, 1, BarCodeTextPosition.Above);
+                        //ne yazdırmak istiyorsan buraya
+
+                        posPrinter.CutPaper(100); //kağıdı tam kes, 100 yerine 50 yazarsan yarısına kadar keser
+
+                        btnPill.Enabled = false;
+                        btnPayment.Enabled = true;
                     }
-
-                    posPrinter = (PosPrinter)explorer.CreateInstance(deviceInfo);
-                    posPrinter.Open();
-                    posPrinter.Claim(500);
-                    posPrinter.DeviceEnabled = true;
-
-                    posPrinter.StatusUpdateEvent += (s, evt) =>
-                    {
-                        if (evt.Status == PosPrinter.StatusCoverOpen)
-                        {
-                            MessageBox.Show("Yazıcının kağıt kapağı açıldı");
-                        }
-                        if (evt.Status == PosPrinter.StatusCoverOK)
-                        {
-                            MessageBox.Show("Yazıcının kağıt kapağı kapandı");
-                        }
-                        if (evt.Status == PosPrinter.StatusJournalCartridgeEmpty)
-                        {
-                            MessageBox.Show("Yazıcının kartuşu bitmek üzere");
-                        }
-
-                        //istediğin eventleri yakalayabilirsin bir sürü var
-                    };
-
-                    posPrinter.PrintNormal(PrinterStation.Slip, "İOSBİL BAKİYE YÜKLEME NOKTASI" + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "********************************************************************" + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "KART SAHİBİ ADI :   " + name + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "KART SAHİBİ SOYADI   : " + surname + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "YÜKLENEN BAKİYE   : " + loadedBalance + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "MEVCUT BAKİYE   : " + currentBalance + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "ÖDEME TÜRÜ :   " + paymentMethod + Environment.NewLine);
-                    posPrinter.PrintNormal(PrinterStation.Slip, "********************************************************************" + Environment.NewLine);
-                    posPrinter.PrintBarCode(PrinterStation.Slip, "123456789", BarCodeSymbology.Ean128, 40, 200, 1, BarCodeTextPosition.Above);
-                    //ne yazdırmak istiyorsan buraya
-
-                    posPrinter.CutPaper(100); //kağıdı tam kes, 100 yerine 50 yazarsan yarısına kadar keser
-
-                    btnPill.Enabled = false;
-                    btnPayment.Enabled = true;
+                    catch {Messagebox.show("Fiş yazdırabilmek için POSforDotNet eklentisini kurmanız gerek.","Hata",MessageBoxButtons.OK, MessageBoxIcon.Warning);}
                 }
             }
             catch { MessageBox.Show("Dekont yazdırma işlemi gerçekleştirilemyior ! Lütfen yazııcının cihazınıza bağlı olduğuna ve internet bağlantınız olduğundan emin olun."); }
@@ -304,7 +308,7 @@ namespace Akbil_projesi.Super_user_forms
                     {
                         try
                         {
-                            SqlCommand command = new SqlCommand("insert into TBLUSERS values(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9)", con.connection());
+                            SqlCommand command = new SqlCommand("insert into TBLUSERS values(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)", con.connection());
                             command.Parameters.AddWithValue("@p1",txtAddName.Text);
                             command.Parameters.AddWithValue("@p2", txtAddSurname.Text);
                             command.Parameters.AddWithValue("@p3", txtUserName.Text);
@@ -314,7 +318,6 @@ namespace Akbil_projesi.Super_user_forms
                             if (rdAdult.Checked == true) { command.Parameters.AddWithValue("@p7", false); }
                             else { command.Parameters.AddWithValue("@p7", true); }
                             command.Parameters.AddWithValue("@p8", 0.ToString());
-                            command.Parameters.AddWithValue("@p9", "Koyu");
                             command.ExecuteNonQuery();
                             addClear();
                             MessageBox.Show("Yeni kayıt ekleme işlemi başarılı!", "Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
